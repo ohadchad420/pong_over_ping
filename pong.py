@@ -1,148 +1,194 @@
-#pylint: disable=no-member, invalid-name
 import sys
 from random import randint
+from types import MethodType
 
 import pygame
 
-# Initialize Pygame
-pygame.init()
 
-# Set up the screen
-WIDTH, HEIGHT = 800, 600
-screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Simple Game Loop")
-
-PLAYER_RECT_WIDTH = 10
-PLAYER_RECT_HEIGHT = 125
-PLAYER_RECT_SCREEN_OFFSET = 10
-
-# Define colors
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
 
-# Set up the game loop
-clock = pygame.time.Clock()
-RUNNING = True
+class GameObject:
+    """
+    Manages a game object (white rect)
+    """
+    def __init__(self, init_x, init_y, width, height, velocity) -> None:
+        self.init_x = init_x
+        self.init_y = init_y
+        self.width = width
+        self.height = height
+        self.rect = pygame.Rect(init_x, init_y, width, height)
 
-# Update game logic here
-player_rect_x = PLAYER_RECT_SCREEN_OFFSET
-player_rect_y = (HEIGHT - PLAYER_RECT_HEIGHT) / 2
+        self.velocity = velocity
+        self.direction: complex = 0
 
-enemy_rect_x = WIDTH - PLAYER_RECT_SCREEN_OFFSET - PLAYER_RECT_WIDTH
-enemy_rect_y = (HEIGHT - PLAYER_RECT_HEIGHT) / 2
+    def reset(self):
+        """
+        Reset game object to initial settings
+        """
+        self.rect.left = self.init_x
+        self.rect.top = self.init_y
+        self.direction = 0
 
-VELOCITY = 10
+    def move(self):
+        """
+        Move the game object
+        """
+        
+        self.rect.x += self.velocity * self.direction.real
+        self.rect.y += self.velocity * self.direction.imag
 
-player_velocity = 0
-enemy_velocity = 0
+class GameManager:
+    """
+    Manages the game and implements the game logic
+    """
 
-player_score = 0
-enemy_score = 0
+    WIDTH = 800
+    HEIGHT = 600
 
-enemy_rect = pygame.Rect(enemy_rect_x, enemy_rect_y, PLAYER_RECT_WIDTH, PLAYER_RECT_HEIGHT)
-player_rect = pygame.Rect(player_rect_x, player_rect_y, PLAYER_RECT_WIDTH, PLAYER_RECT_HEIGHT)
+    PLAYER_RECT_WIDTH = 10
+    PLAYER_RECT_HEIGHT = 125
+    PLAYER_RECT_SCREEN_OFFSET = 10
 
-BALL_SIZE = 20
-ball_X = (WIDTH - BALL_SIZE) / 2
-ball_y = (HEIGHT - BALL_SIZE) / 2
+    PLAYER_VELOCITY = 10
 
-ball_rect = pygame.Rect(ball_X, ball_y, BALL_SIZE, BALL_SIZE)
+    BALL_SIZE = 20
+    BALL_DIRECTION_OPTIONS = [1 + 1j, 1 - 1j, -1 + 1j, -1 -1j]
 
-ball_direction_options = [1 + 1j, 1 - 1j, -1 + 1j, -1 -1j]
+    BALL_VELOCITY = 5
 
-def reset_game():
-    global ball_velocity
-    ball_velocity = VELOCITY / 2 * ball_direction_options[randint(0, 3)]
-    ball_rect.x = ball_X
-    ball_rect.y = ball_y
-    # player_rect.x = player_rect_x
-    # player_rect.y = player_rect_y
-    # enemy_rect.x = enemy_rect_x
-    # enemy_rect.y = enemy_rect_y
+    GET_BALL_DIRECTION = lambda *args: GameManager.BALL_DIRECTION_OPTIONS[randint(0, 3)] #pylint: disable=unnecessary-lambda-assignment
 
-reset_game()
+    def __init__(self) -> None:
+        pygame.init()
 
-# Set up the font
-font = pygame.font.Font(None, 72)
+        self.screen = pygame.display.set_mode((self.WIDTH, self.HEIGHT))
+        pygame.display.set_caption("Pong over Ping")
 
-while RUNNING:
-    # Handle events
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            RUNNING = False
+        self.clock = pygame.time.Clock()
+        self.running = True
 
-        if event.type == pygame.KEYDOWN:
-            match event.key:
-                case pygame.K_UP:
-                    enemy_velocity = VELOCITY
-                case pygame.K_DOWN:
-                    enemy_velocity = -VELOCITY
-                case pygame.K_w:
-                    player_velocity = VELOCITY
-                case pygame.K_s:
-                    player_velocity = -VELOCITY
+        
 
-                case pygame.K_SPACE:
-                    reset_game()
+        self.font = pygame.font.Font(None, 72)
 
-        if event.type == pygame.KEYUP:
-            if event.key in (pygame.K_UP, pygame.K_DOWN):
-                enemy_velocity = 0
-            if event.key in (pygame.K_w, pygame.K_s):
-                player_velocity = 0
+        self.player: GameObject | None = None
+        self.enemy: GameObject | None = None
+        self.ball: GameObject | None = None
 
-    if ball_rect.colliderect(player_rect) \
-       or ball_rect.colliderect(enemy_rect) \
-       or ball_rect.top < 0 \
-       or ball_rect.bottom > HEIGHT:
-        ball_velocity *= 1j
+        self.player_score = 0
+        self.enemy_score = 0
 
-    if ball_rect.left < 0:
-        player_score += 1
-        print('player scored')
-        reset_game()
-    if ball_rect.right > WIDTH:
-        print('enemy scored')
-        enemy_score += 1
-        reset_game()
+        self.initialize_game_objects()
 
-    player_rect.y -= player_velocity
-    enemy_rect.y -= enemy_velocity
-
-    if player_rect.top < 0:
-        player_rect.top = 0
-    if player_rect.bottom > HEIGHT:
-        player_rect.bottom = HEIGHT
-    if enemy_rect.top < 0:
-        enemy_rect.top = 0
-    if enemy_rect.bottom > HEIGHT:
-        enemy_rect.bottom = HEIGHT
-    
-    ball_rect.x += ball_velocity.real
-    ball_rect.y += ball_velocity.imag
-
-    # Clear the screen
-    screen.fill(BLACK)
-
-    pygame.draw.rect(screen, WHITE, player_rect)
-
-    pygame.draw.rect(screen, WHITE, enemy_rect)
-
-    pygame.draw.rect(screen, WHITE, ball_rect)
-
-    scoreboard = font.render(f'{enemy_score} - {player_score}', True, WHITE)
-    score_rect = scoreboard.get_rect(center=(WIDTH//2, 50))  # Center text on the screen
-    screen.blit(scoreboard, score_rect)
+        self.game_objects: list[GameObject] = [self.ball, self.player, self.enemy]
+        self.exclude_ball_slice = slice(1,None)
 
 
-    # Draw objects here
+    def initialize_game_objects(self):
+        """
+        Initialize the game objects
+        """
+        player_rect_x = self.PLAYER_RECT_SCREEN_OFFSET
+        player_rect_y = (self.HEIGHT - self.PLAYER_RECT_HEIGHT) / 2
+        self.player = GameObject(player_rect_x, player_rect_y, self.PLAYER_RECT_WIDTH, self.PLAYER_RECT_HEIGHT, self.PLAYER_VELOCITY)
 
-    # Update the display
-    pygame.display.flip()
+        enemy_rect_x = self.WIDTH - self.PLAYER_RECT_SCREEN_OFFSET - self.PLAYER_RECT_WIDTH
+        enemy_rect_y = (self.HEIGHT - self.PLAYER_RECT_HEIGHT) / 2
+        self.enemy = GameObject(enemy_rect_x, enemy_rect_y, self.PLAYER_RECT_WIDTH, self.PLAYER_RECT_HEIGHT, self.PLAYER_VELOCITY)
 
-    # Cap the frame rate
-    clock.tick(60)
+        ball_x = (self.WIDTH - self.BALL_SIZE) / 2
+        ball_y = (self.HEIGHT - self.BALL_SIZE) / 2
+        self.ball = GameObject(ball_x, ball_y, self.BALL_SIZE, self.BALL_SIZE, self.BALL_VELOCITY)
 
-# Quit Pygame
-pygame.quit()
-sys.exit()
+        def ball_reset(self: GameObject):
+            self.reset()
+            self.direction = GameManager.GET_BALL_DIRECTION()
+
+        self.ball.ball_reset = MethodType(ball_reset, self.ball) # pylint: disable=attribute-defined-outside-init
+        self.ball.ball_reset()
+
+    def main_loop(self):
+        """
+        Handles the logic for the main loop of the game
+        """
+        #pylint: disable=no-member
+        while self.running:
+            # Handle events
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    self.running = False
+
+                if event.type == pygame.KEYDOWN:
+                    match event.key:
+                        case pygame.K_UP:
+                            self.enemy.direction = -1j
+                        case pygame.K_DOWN:
+                            self.enemy.direction = 1j
+                        case pygame.K_w:
+                            self.player.direction = -1j
+                        case pygame.K_s:
+                            self.player.direction = 1j
+
+                        case pygame.K_SPACE:
+                            self.ball.ball_reset()
+                            # self.ball.reset()
+                            # self.ball.direction = self.GET_BALL_DIRECTION()
+
+                if event.type == pygame.KEYUP:
+                    if event.key in (pygame.K_UP, pygame.K_DOWN):
+                        self.enemy.direction = 0
+                    if event.key in (pygame.K_w, pygame.K_s):
+                        self.player.direction = 0
+
+
+
+            for gameobj in self.game_objects:
+                gameobj.move()
+
+
+            if self.ball.rect.colliderect(self.player.rect) \
+               or self.ball.rect.colliderect(self.enemy.rect) \
+               or self.ball.rect.top < 0 \
+               or self.ball.rect.bottom > self.HEIGHT:
+                self.ball.direction *= 1j
+
+            for gameobj in self.game_objects[self.exclude_ball_slice]:
+                if gameobj.rect.top < 0:
+                    gameobj.rect.top = 0
+                if gameobj.rect.bottom > self.HEIGHT:
+                    gameobj.rect.bottom = self.HEIGHT
+
+            if self.ball.rect.left < 0:
+                self.player_score += 1
+                self.ball.ball_reset()
+            if self.ball.rect.right > self.WIDTH:
+                self.enemy_score += 1
+                self.ball.ball_reset()
+
+            self.screen.fill(BLACK)
+
+            for gameobj in self.game_objects:
+                pygame.draw.rect(self.screen, WHITE, gameobj.rect)
+
+            scoreboard = self.font.render(f'{self.enemy_score} - {self.player_score}', True, WHITE)
+            score_rect = scoreboard.get_rect(center=(self.WIDTH//2, 50))  # Center text on the screen
+            self.screen.blit(scoreboard, score_rect)
+
+            # Update the display
+            pygame.display.flip()
+
+            # Cap the frame rate
+            self.clock.tick(60)
+
+    def run(self):
+        """
+        Run the game and gracegully exit upon exit event
+        """
+        #pylint: disable=no-member
+        self.main_loop()
+        pygame.quit()
+        sys.exit()
+
+if __name__ == '__main__':
+    GameManager().run()
